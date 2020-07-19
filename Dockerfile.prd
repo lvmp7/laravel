@@ -1,6 +1,6 @@
-FROM php:7.3.6-fpm-alpine3.9
+FROM php:7.3.6-fpm-alpine3.9 as builder
 
-RUN apk add bash --no-cache shadow openssl mysql-client
+RUN apk add bash --no-cache shadow openssl mysql-client nodejs npm
 RUN docker-php-ext-install pdo pdo_mysql
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -11,13 +11,21 @@ RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSI
 
 WORKDIR /var/www
 RUN rm -rf /var/www/html && ln -s public html
-#COPY . /var/www
+COPY . /var/www
 
-#RUN composer install \
-#    && php artisan key:generate \
-#    && php artisan cache:clear \
-#    && php artisan config:clear \
-#    && chmod -R 775 storage
+RUN composer install \
+    && php artisan key:generate \
+    && php artisan cache:clear \
+    && chmod -R 775 storage
+RUN npm install
+
+FROM php:7.3.6-fpm-alpine3.9
+RUN apk add --no-cache mysql-client
+RUN docker-php-ext-install pdo pdo_mysql
+WORKDIR /var/www
+RUN rm -rf /var/www/html && ln -s public html
+
+COPY --from=builder /var/www .
 
 EXPOSE 9000
 ENTRYPOINT ["php-fpm"]
